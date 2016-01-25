@@ -1,0 +1,15 @@
+# Copyright SAS Institite, Inc.
+
+# -- progress states ----------------------------------------------------------
+
+STATE_NOT_STARTED = 'NOT_STARTED'
+STATE_RUNNING = 'IN_PROGRESS'
+STATE_COMPLETE = 'FINISHED'
+STATE_FAILED = 'FAILED'
+STATE_SKIPPED = 'SKIPPED'
+
+COMPLETE_STATES = (STATE_COMPLETE, STATE_FAILED, STATE_SKIPPED)
+
+PUBLISH_SNAPSHOT = 'publish_snapshot'
+
+PUBLISH_STEPS = (PUBLISH_SNAPSHOT, )
