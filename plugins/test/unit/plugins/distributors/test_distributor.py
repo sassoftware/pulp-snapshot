@@ -3,7 +3,7 @@ import sys
 
 import mock
 from pulp.server.managers import factory
-from pulp.server.exceptions import PulpCodedException
+# from pulp.server.exceptions import PulpCodedException
 from .... import testbase
 from pulp_snapshot.common import ids
 
@@ -112,7 +112,7 @@ class BaseTest(testbase.TestCase):
     def tearDown(self):
         self._confmock.stop()
         sys.meta_path = self._meta_path
-        shutil.rmtree(self.work_dir)
+        shutil.rmtree(self.work_dir, ignore_errors=True)
         super(BaseTest, self).tearDown()
 
     def _config_conduit(self):
@@ -147,14 +147,16 @@ class TestConfiguration(BaseTest):
 
 
 class TestPublish(BaseTest):
-    @mock.patch("pulp_snapshot.plugins.distributors.distributor.time")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.time.time")
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoManager")
-    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")
-    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoDistributor")
-    def test_publish(self, _distr, _units, _repomgr, _time):
-        _time.time.return_value = 1234567890.1234
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoGroup")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoDistributor")  # noqa
+    def test_publish(self, _distr, _units, _repogroup, _repomgr, _time):
+        _time.return_value = 1234567890.1234
 
         repo_id = "repo-1-sasmd-level0"
+        exp_repo_name = 'repo-1-sasmd-level0__20090213233130.1233Z'
         repo = mock.MagicMock(id=repo_id, notes={'_repo-type': 'rpm'})
         conduit = self._config_conduit()
         config = dict()
@@ -171,11 +173,17 @@ class TestPublish(BaseTest):
             dict(unit_type_id="rpm", unit_id="aaa"),
             dict(unit_type_id="srpm", unit_id="bbb"),
         ]
+        
+        _repogroup.get_collection.return_value.find.return_value = [
+            dict(id='group-0', repo_ids=['a', 'b', 'c']),
+            dict(id='group-1', repo_ids=['a', 'b', 'c']),
+        ]
 
         publ = self.Module.Publisher(repo, conduit, config)
         publ.working_dir = self.work_dir
+        publ.uuid = 'f0000000-0000-0000-0000-000000000001'
 
-        publ.process()
+        publ.process_lifecycle()
 
         _distr.get_collection.return_value.find.assert_called_once_with(
             dict(repo_id="repo-1-sasmd-level0"))
@@ -183,14 +191,20 @@ class TestPublish(BaseTest):
         _units.get_collection.return_value.find.assert_called_once_with(
             dict(repo_id="repo-1-sasmd-level0"))
 
-        exp_repo_name = 'repo-1-sasmd-level0__1234567890.1234'
+        _repogroup.assert_has_calls([
+            mock.call('group-0', repo_ids=[exp_repo_name]),
+            mock.call('group-1', repo_ids=[exp_repo_name]),
+        ], any_order=True)
+        _repogroup.get_collection.return_value.insert.assert_called_once_with(
+            [_repogroup.return_value, _repogroup.return_value])
+
         _repomgr.create_and_configure_repo.assert_called_once_with(
             exp_repo_name, distributor_list=[
                 {
                     'distributor_type_id': 'yum_distributor',
                     'auto_publish': True,
                     'distributor_config': {
-                        'relative_url': 'aaa__1234567890.1234'},
+                        'relative_url': 'aaa__20090213233130.1233Z'},
                 }],
             notes=repo.notes)
 
@@ -205,3 +219,44 @@ class TestPublish(BaseTest):
             [_units.return_value, _units.return_value])
         _repomgr.rebuild_content_unit_counts.assert_called_once_with(
             repo_ids=[exp_repo_name])
+        delta = {'notes': {'_repository_snapshot':
+                           'repo-1-sasmd-level0__20090213233130.1233Z',
+                           '_repository_timestamp': 1234567890.1234}}
+        _repomgr.update_repo.assert_called_once_with(repo.id, delta)
+
+        conduit.build_success_report.assert_called_once_with(
+            {'repository_snapshot':
+             'repo-1-sasmd-level0__20090213233130.1233Z'},
+            [{'num_processed': 1,
+              'items_total': 1,
+              'state': 'FINISHED',
+              'num_success': 1,
+              'error_details': [],
+              'description': 'Snapshotting repository',
+              'num_failures': 0,
+              'step_id': 'f0000000-0000-0000-0000-000000000001',
+              'step_type': 'publish_snapshot',
+              'details': ''}])
+
+        self.assertEquals(exp_repo_name, publ.repo_snapshot)
+
+
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._get_units")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._build_report")  # noqa
+    def test_publish_no_change(self, _build_report, _get_units, _units):
+        repo_id = "repo-1-sasmd-level0"
+        repo_snapshot_other = "repo-1-timestamped"
+        notes =  notes={'_repo-type': 'rpm',
+                        '_repository_snapshot': repo_snapshot_other}
+        repo = mock.MagicMock(id=repo_id, notes=notes)
+        conduit = self._config_conduit()
+        config = dict()
+
+        _get_units.return_value = [{'unit_id': 1, 'unit_type_id': 'rpm'}]
+
+        publ = self.Module.Publisher(repo, conduit, config)
+        publ.working_dir = self.work_dir
+
+        publ.process_lifecycle()
+        _build_report.assert_called_once_with(repo_snapshot_other)

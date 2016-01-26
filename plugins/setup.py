@@ -17,5 +17,7 @@ setup(
     data_files=[
         ('/usr/lib/pulp/plugins/types', ['types/snapshot.json']),
     ],
+    install_requires=['blinker', 'celery', 'django', 'kombu', 'mongoengine',
+                      'oauth2', 'semantic_version'],
     tests_require=['mock', 'pytest'],
 )
