@@ -5,7 +5,8 @@ import time
 from gettext import gettext as _
 from pulp.plugins.util.publish_step import PublishStep
 from pulp.plugins.distributor import Distributor
-from pulp.server.db.model.repository import RepoDistributor, RepoContentUnit
+from pulp.server.db.model.repository import (RepoDistributor, RepoImporter,
+                                             RepoContentUnit)
 from pulp.server.db.model.repo_group import RepoGroup
 from pulp.server.managers.repo.cud import RepoManager
 from pulp.server.exceptions import PulpCodedException
@@ -97,8 +98,17 @@ class Publisher(PublishStep):
                 cfg['relative_url'] = "%s%s" % (cfg['relative_url'], suffix)
             distributors.append(distrib)
 
-        RepoManager.create_and_configure_repo(new_name, notes=notes,
-                                              distributor_list=distributors)
+        importer_coll = RepoImporter.get_collection()
+        repo_importer = importer_coll.find_one({'repo_id': repo.id})
+        if repo_importer is not None:
+            importer_type_id = repo_importer['importer_type_id']
+        else:
+            importer_type_id = None
+
+        RepoManager.create_and_configure_repo(
+            new_name, notes=notes,
+            importer_type_id=importer_type_id,
+            distributor_list=distributors)
         copied = []
         for unit in sorted(units):
             copied.append(RepoContentUnit(
@@ -115,18 +125,12 @@ class Publisher(PublishStep):
         RepoManager.update_repo(repo.id, delta)
 
         group_coll = RepoGroup.get_collection()
-        groups = [RepoGroup(x, repo_ids=[new_name])
-                  for x in self._get_repo_groups(repo.id)]
-        group_coll.insert(groups)
+        group_coll.update(dict(repo_ids=repo.id),
+                          {'$addToSet': dict(repo_ids=new_name)})
         return self._build_report(new_name)
 
     def _get_units(self, collection, repo_id):
         return list(collection.find(dict(repo_id=repo_id)))
-
-    def _get_repo_groups(self, repo_id):
-        group_coll = RepoGroup.get_collection()
-        # mongo lets you specify a single element in an array match
-        return set(x['id'] for x in group_coll.find(dict(repo_ids=repo_id)))
 
     @classmethod
     def _units_to_set(cls, units):
