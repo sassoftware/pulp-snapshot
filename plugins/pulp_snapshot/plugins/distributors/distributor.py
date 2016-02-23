@@ -9,9 +9,7 @@ from pulp.server.db.model.repository import (RepoDistributor, RepoImporter,
                                              RepoContentUnit)
 from pulp.server.db.model.repo_group import RepoGroup
 from pulp.server.managers.repo.cud import RepoManager
-from pulp.server.exceptions import PulpCodedException
 from pulp_snapshot.common import ids, constants
-from pulp_snapshot.plugins import error_codes
 from . import configuration
 
 _LOG = logging.getLogger(__name__)
@@ -72,7 +70,10 @@ class Publisher(PublishStep):
             old_units = []
         units = self._units_to_set(units)
         old_units = self._units_to_set(old_units)
-        if units == old_units and snapshot_name:
+        # Create a snapshot if one did not exist before (snapshot_name is
+        # None) and the repo is not empty, or if the unit contents are
+        # different
+        if units == old_units and (snapshot_name or not units):
             return self._build_report(snapshot_name)
 
         now = time.time()
@@ -108,6 +109,7 @@ class Publisher(PublishStep):
         RepoManager.create_and_configure_repo(
             new_name, notes=notes,
             importer_type_id=importer_type_id,
+            importer_repo_plugin_config={},
             distributor_list=distributors)
         copied = []
         for unit in sorted(units):

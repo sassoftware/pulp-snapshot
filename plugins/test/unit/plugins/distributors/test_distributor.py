@@ -212,6 +212,7 @@ class TestPublish(BaseTest):
                         'relative_url': 'aaa__20090213233130.1233Z'},
                 }],
             importer_type_id=imp_type_id,
+            importer_repo_plugin_config={},
             notes=repo.notes)
 
         _units.assert_has_calls([
@@ -265,3 +266,22 @@ class TestPublish(BaseTest):
 
         publ.process_lifecycle()
         _build_report.assert_called_once_with(repo_snapshot_other)
+
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._get_units")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._build_report")  # noqa
+    def test_publish_empty_repo(self, _build_report, _get_units, _units):
+        repo_id = "repo-1-sasmd-level0"
+        notes = {'_repo-type': 'rpm'}
+        repo = mock.MagicMock(id=repo_id, notes=notes)
+        conduit = self._config_conduit()
+        config = dict()
+
+        _get_units.return_value = []
+
+        publ = self.Module.Publisher(repo, conduit, config)
+        publ.working_dir = self.work_dir
+
+        publ.process_lifecycle()
+        # Expect call with no snapshot, since one was not created
+        _build_report.assert_called_once_with(None)
