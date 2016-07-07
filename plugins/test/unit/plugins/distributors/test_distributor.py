@@ -158,7 +158,9 @@ class TestPublish(BaseTest):
 
         repo_id = "repo-1-sasmd-level0"
         exp_repo_name = 'repo-1-sasmd-level0__20090213233130.1233Z'
-        repo = mock.MagicMock(id=repo_id, notes={'_repo-type': 'rpm'})
+        repo_notes = {'_repo-type': 'rpm',
+                      '_repository_timestamp': 1234567890.1234}
+        repo = mock.MagicMock(id=repo_id, notes=repo_notes)
         conduit = self._config_conduit()
         config = dict()
 

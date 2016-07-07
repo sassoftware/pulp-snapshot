@@ -81,6 +81,7 @@ class Publisher(PublishStep):
         suffix = "__%s.%04dZ" % (suffix, 10000 * (now - int(now)))
         new_name = "%s%s" % (repo.id, suffix)
         notes = {}
+        notes[REPO_SNAPSHOT_TIMESTAMP] = now
         if '_repo-type' in repo.notes:
             notes['_repo-type'] = repo.notes['_repo-type']
         # Fetch the repo's existing distributors and importers
