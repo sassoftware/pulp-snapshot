@@ -119,7 +119,8 @@ class Publisher(PublishStep):
                 unit_id=unit.unit_id,
                 unit_type_id=unit.unit_type_id,
             ))
-        units_coll.insert(copied)
+        if copied:
+            units_coll.insert(copied)
         RepoManager.rebuild_content_unit_counts(repo_ids=[new_name])
         delta = dict(notes={
             REPO_SNAPSHOT_NAME: new_name,

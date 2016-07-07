@@ -287,3 +287,72 @@ class TestPublish(BaseTest):
         publ.process_lifecycle()
         # Expect call with no snapshot, since one was not created
         _build_report.assert_called_once_with(None)
+
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.time.time")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoManager")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoGroup")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._get_units")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoDistributor")  # noqa
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoImporter")
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._build_report")  # noqa
+    def test_publish_empty_repo_nonempty_snapshot(self, _build_report, _imp,
+                                                  _distr, _get_units, _units,
+                                                  _repogroup, _repomgr, _time):
+        _time.return_value = 1234567890.1234
+        repo_id = "repo-1-sasmd-level0"
+        repo_snapshot_other = "repo-1-timestamped"
+        exp_repo_name = 'repo-1-sasmd-level0__20090213233130.1233Z'
+        notes = {'_repo-type': 'rpm',
+                 '_repository_snapshot': repo_snapshot_other}
+        exp_notes = {'_repo-type': 'rpm',
+                     '_repository_timestamp': 1234567890.1234}
+        repo = mock.MagicMock(id=repo_id, notes=notes)
+        conduit = self._config_conduit()
+        config = dict()
+
+        _get_units.side_effect = [[],
+                                  [{'unit_id': 1, 'unit_type_id': 'rpm'}]]
+
+        _distr.get_collection.return_value.find.return_value = [
+            dict(distributor_type_id="yum_distributor",
+                 config=dict(relative_url="aaa"),
+                 auto_publish=True),
+            dict(distributor_type_id=ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT,
+                 config=dict(a=1),
+                 auto_publish=False),
+        ]
+
+        publ = self.Module.Publisher(repo, conduit, config)
+        publ.working_dir = self.work_dir
+
+        publ.process_lifecycle()
+        _build_report.assert_called_once_with(exp_repo_name)
+
+        _distr.get_collection.return_value.find.assert_called_once_with(
+            dict(repo_id=repo_id))
+
+        _get_units.assert_has_calls([
+            mock.call(_units.get_collection.return_value, repo_id),
+            mock.call(_units.get_collection.return_value,
+                      repo_snapshot_other),
+        ])
+
+        _imp.get_collection.return_value.find_one.assert_called_once_with(
+            dict(repo_id=repo_id))
+
+        # Nothing to insert
+        _units.get_collection.return_value.insert.assert_not_called()
+
+        imp_type_id = _imp.get_collection.return_value.find_one.return_value['import_type_id']  # noqa
+        _repomgr.create_and_configure_repo.assert_called_once_with(
+            exp_repo_name, distributor_list=[
+                {
+                    'distributor_type_id': 'yum_distributor',
+                    'auto_publish': True,
+                    'distributor_config': {
+                        'relative_url': 'aaa__20090213233130.1233Z'},
+                }],
+            importer_type_id=imp_type_id,
+            importer_repo_plugin_config={},
+            notes=exp_notes)
