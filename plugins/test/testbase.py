@@ -18,6 +18,9 @@ class ImporterWrapper(ModuleType):
             return default
         return self
 
+    def getint(self, name, default=None):
+        return 0
+
     def getfloat(self, name, default=None):
         return 0.0
 

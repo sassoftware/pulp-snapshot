@@ -5,14 +5,14 @@
 %define pulp_server 1
 
 # define required pulp platform version.
-%define pulp_version 2.7.1
+%define pulp_version 2.10.1
 
 %define inst_prefix pulp_snapshot
 
 # ---- Pulp (snapshot) ------------------------------------------------------------
 
 Name: pulp-snapshot
-Version: 0.1
+Version: 0.2
 Release: 1%{?dist}
 Summary: Distributor that snapshots the state of a repository at publish time
 Group: Development/Languages
@@ -103,7 +103,7 @@ A collection of modules shared among all SAS Metadata components.
 Summary: Pulp Win plugins
 Group: Development/Languages
 Requires: python-%{name}-common = %{version}-%{release}
-Requires: pulp-server = %{pulp_version}
+Requires: pulp-server
 # rpm-python needed for version comparison
 Requires: rpm-python
 
@@ -127,7 +127,7 @@ to provide Win specific support.
 %package admin-extensions
 Summary: The Win admin client extensions
 Group: Development/Languages
-Requires: pulp-admin-client = %{pulp_version}
+Requires: pulp-admin-client
 Requires: python-%{name}-common = %{version}-%{release}
 # Needed for version_utils
 Requires: python-pulp-rpm-common

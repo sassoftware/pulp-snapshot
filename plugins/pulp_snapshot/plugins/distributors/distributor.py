@@ -3,12 +3,13 @@ import logging
 import time
 
 from gettext import gettext as _
-from pulp.plugins.util.publish_step import PublishStep
+from pulp.plugins.util import publish_step as platform_steps
 from pulp.plugins.distributor import Distributor
-from pulp.server.db.model.repository import (RepoDistributor, RepoImporter,
-                                             RepoContentUnit)
+from pulp.server.db.model import \
+    Distributor as RepoDistributor, Importer as RepoImporter
+from pulp.server.db.model.repository import RepoContentUnit
 from pulp.server.db.model.repo_group import RepoGroup
-from pulp.server.managers.repo.cud import RepoManager
+from pulp.server.controllers import repository as repo_controller
 from pulp_snapshot.common import ids, constants
 from . import configuration
 
@@ -36,24 +37,24 @@ class Snapshot_Distributor(Distributor):
         return configuration.validate_config(repo, config, config_conduit)
 
     def publish_repo(self, repo, publish_conduit, config):
-        publisher = Publisher(repo=repo, publish_conduit=publish_conduit,
-                              config=config)
+        publisher = Publisher(repo=repo, conduit=conduit, config=config)
         return publisher.process_lifecycle()
 
     def distributor_removed(self, repo, config):
         pass
 
 
-class Publisher(PublishStep):
+class Publisher(platform_steps.PluginStep):
     description = _("Snapshotting repository")
 
-    def __init__(self, repo, publish_conduit, config):
+    def __init__(self, repo, conduit, config, **kwargs):
         super(Publisher, self).__init__(
             step_type=constants.PUBLISH_SNAPSHOT,
             repo=repo,
-            publish_conduit=publish_conduit,
+            conduit=conduit,
             config=config,
-            distributor_type=ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT)
+            plugin_type=ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT,
+            **kwargs)
         self.description = self.__class__.description
         self.repo_snapshot = None
 
@@ -84,9 +85,11 @@ class Publisher(PublishStep):
         notes[REPO_SNAPSHOT_TIMESTAMP] = now
         if '_repo-type' in repo.notes:
             notes['_repo-type'] = repo.notes['_repo-type']
+        notes[REPO_SNAPSHOT_NAME] = new_name
+        notes[REPO_SNAPSHOT_TIMESTAMP] = now
         # Fetch the repo's existing distributors and importers
-        distributor_coll = RepoDistributor.get_collection()
-        repo_distributors = list(distributor_coll.find({'repo_id': repo.id}))
+        repo_distributors = list(RepoDistributor.objects.filter(
+            repo_id=repo.id))
         distributors = []
         for x in repo_distributors:
             if x['distributor_type_id'] == ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT:
@@ -100,14 +103,13 @@ class Publisher(PublishStep):
                 cfg['relative_url'] = "%s%s" % (cfg['relative_url'], suffix)
             distributors.append(distrib)
 
-        importer_coll = RepoImporter.get_collection()
-        repo_importer = importer_coll.find_one({'repo_id': repo.id})
+        repo_importer = RepoImporter.objects.filter(repo_id=repo.id).first()
         if repo_importer is not None:
             importer_type_id = repo_importer['importer_type_id']
         else:
             importer_type_id = None
 
-        RepoManager.create_and_configure_repo(
+        repo_obj = repo_controller.create_repo(
             new_name, notes=notes,
             importer_type_id=importer_type_id,
             importer_repo_plugin_config={},
@@ -121,12 +123,7 @@ class Publisher(PublishStep):
             ))
         if copied:
             units_coll.insert(copied)
-        RepoManager.rebuild_content_unit_counts(repo_ids=[new_name])
-        delta = dict(notes={
-            REPO_SNAPSHOT_NAME: new_name,
-            REPO_SNAPSHOT_TIMESTAMP: now,
-        })
-        RepoManager.update_repo(repo.id, delta)
+        repo_controller.rebuild_content_unit_counts(repo_obj)
 
         group_coll = RepoGroup.get_collection()
         group_coll.update(dict(repo_ids=repo.id),
