@@ -147,6 +147,22 @@ class TestConfiguration(BaseTest):
 
 
 class TestPublish(BaseTest):
+    @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher")
+    def test_publish_repo(self, _Publisher):
+        repo = mock.MagicMock()
+        conduit = mock.MagicMock()
+        config = mock.MagicMock()
+
+        d = self.Module.Snapshot_Distributor()
+        ret = d.publish_repo(repo, conduit, config)
+
+        self.assertEquals(
+            _Publisher.return_value.process_lifecycle.return_value,
+            ret)
+
+        _Publisher.assert_called_once_with(repo=repo, conduit=conduit,
+                                           config=config)
+
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.time.time")
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.repo_controller")  # noqa
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoGroup")

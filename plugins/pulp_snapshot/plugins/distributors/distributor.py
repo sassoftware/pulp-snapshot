@@ -36,7 +36,7 @@ class Snapshot_Distributor(Distributor):
     def validate_config(self, repo, config, config_conduit):
         return configuration.validate_config(repo, config, config_conduit)
 
-    def publish_repo(self, repo, publish_conduit, config):
+    def publish_repo(self, repo, conduit, config):
         publisher = Publisher(repo=repo, conduit=conduit, config=config)
         return publisher.process_lifecycle()
 
