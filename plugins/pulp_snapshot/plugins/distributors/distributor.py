@@ -5,8 +5,7 @@ import time
 from gettext import gettext as _
 from pulp.plugins.util import publish_step as platform_steps
 from pulp.plugins.distributor import Distributor
-from pulp.server.db.model import \
-    Distributor as RepoDistributor, Importer as RepoImporter
+from pulp.server.db.model import Importer as RepoImporter
 from pulp.server.db.model.repository import RepoContentUnit
 from pulp.server.db.model.repo_group import RepoGroup
 from pulp.server.controllers import repository as repo_controller
@@ -87,21 +86,8 @@ class Publisher(platform_steps.PluginStep):
             notes['_repo-type'] = repo.notes['_repo-type']
         notes[REPO_SNAPSHOT_NAME] = new_name
         notes[REPO_SNAPSHOT_TIMESTAMP] = now
-        # Fetch the repo's existing distributors and importers
-        repo_distributors = list(RepoDistributor.objects.filter(
-            repo_id=repo.id))
         distributors = []
-        for x in repo_distributors:
-            if x['distributor_type_id'] == ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT:
-                continue
-            distrib = dict(
-                distributor_type_id=x['distributor_type_id'],
-                distributor_config=x['config'].copy(),
-                auto_publish=x['auto_publish'])
-            cfg = distrib['distributor_config']
-            if 'relative_url' in cfg:
-                cfg['relative_url'] = "%s%s" % (cfg['relative_url'], suffix)
-            distributors.append(distrib)
+        # Fetch the repo's existing importers
 
         repo_importer = RepoImporter.objects.filter(repo_id=repo.id).first()
         if repo_importer is not None:

@@ -12,7 +12,7 @@
 # ---- Pulp (snapshot) ------------------------------------------------------------
 
 Name: pulp-snapshot
-Version: 0.2
+Version: 0.3
 Release: 1%{?dist}
 Summary: Distributor that snapshots the state of a repository at publish time
 Group: Development/Languages

@@ -5,7 +5,6 @@ import mock
 from pulp.server.managers import factory
 # from pulp.server.exceptions import PulpCodedException
 from .... import testbase
-from pulp_snapshot.common import ids
 
 
 class Attributer(object):
@@ -167,9 +166,8 @@ class TestPublish(BaseTest):
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.repo_controller")  # noqa
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoGroup")
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
-    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoDistributor")  # noqa
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoImporter")
-    def test_publish(self, _imp, _distr, _units, _repogroup, _repoctrl, _time):
+    def test_publish(self, _imp, _units, _repogroup, _repoctrl, _time):
         _time.return_value = 1234567890.1234
 
         repo_id = "repo-1-sasmd-level0"
@@ -180,14 +178,6 @@ class TestPublish(BaseTest):
         conduit = self._config_conduit()
         config = dict()
 
-        _distr.objects.filter.return_value = [
-            dict(distributor_type_id="yum_distributor",
-                 config=dict(relative_url="aaa"),
-                 auto_publish=True),
-            dict(distributor_type_id=ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT,
-                 config=dict(a=1),
-                 auto_publish=False),
-        ]
         _units.get_collection.return_value.find.return_value = [
             dict(unit_type_id="rpm", unit_id="aaa"),
             dict(unit_type_id="srpm", unit_id="bbb"),
@@ -203,9 +193,6 @@ class TestPublish(BaseTest):
         publ.uuid = 'f0000000-0000-0000-0000-000000000001'
 
         publ.process_lifecycle()
-
-        _distr.objects.filter.assert_called_once_with(
-            repo_id="repo-1-sasmd-level0")
 
         _units.get_collection.return_value.find.assert_called_once_with(
             dict(repo_id="repo-1-sasmd-level0"))
@@ -229,13 +216,7 @@ class TestPublish(BaseTest):
 
         imp_type_id = _imp.objects.filter.return_value.first.return_value['import_type_id']  # noqa
         _repoctrl.create_repo.assert_called_once_with(
-            exp_repo_name, distributor_list=[
-                {
-                    'distributor_type_id': 'yum_distributor',
-                    'auto_publish': True,
-                    'distributor_config': {
-                        'relative_url': 'aaa__20090213233130.1233Z'},
-                }],
+            exp_repo_name, distributor_list=[],
             importer_type_id=imp_type_id,
             importer_repo_plugin_config={},
             notes=notes)
@@ -312,11 +293,10 @@ class TestPublish(BaseTest):
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoGroup")
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoContentUnit")  # noqa
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._get_units")  # noqa
-    @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoDistributor")  # noqa
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.RepoImporter")
     @mock.patch("pulp_snapshot.plugins.distributors.distributor.Publisher._build_report")  # noqa
     def test_publish_empty_repo_nonempty_snapshot(self, _build_report, _imp,
-                                                  _distr, _get_units, _units,
+                                                  _get_units, _units,
                                                   _repogroup, _repoctrl,
                                                   _time):
         _time.return_value = 1234567890.1234
@@ -335,23 +315,11 @@ class TestPublish(BaseTest):
         _get_units.side_effect = [[],
                                   [{'unit_id': 1, 'unit_type_id': 'rpm'}]]
 
-        _distr.objects.filter.return_value = [
-            dict(distributor_type_id="yum_distributor",
-                 config=dict(relative_url="aaa"),
-                 auto_publish=True),
-            dict(distributor_type_id=ids.TYPE_ID_DISTRIBUTOR_SNAPSHOT,
-                 config=dict(a=1),
-                 auto_publish=False),
-        ]
-
         publ = self.Module.Publisher(repo, conduit, config)
         publ.working_dir = self.work_dir
 
         publ.process_lifecycle()
         _build_report.assert_called_once_with(exp_repo_name)
-
-        _distr.objects.filter.assert_called_once_with(
-            repo_id=repo_id)
 
         _get_units.assert_has_calls([
             mock.call(_units.get_collection.return_value, repo_id),
@@ -368,13 +336,7 @@ class TestPublish(BaseTest):
 
         imp_type_id = _imp.objects.filter.return_value.first.return_value['import_type_id']  # noqa
         _repoctrl.create_repo.assert_called_once_with(
-            exp_repo_name, distributor_list=[
-                {
-                    'distributor_type_id': 'yum_distributor',
-                    'auto_publish': True,
-                    'distributor_config': {
-                        'relative_url': 'aaa__20090213233130.1233Z'},
-                }],
+            exp_repo_name, distributor_list=[],
             importer_type_id=imp_type_id,
             importer_repo_plugin_config={},
             notes=exp_notes)
